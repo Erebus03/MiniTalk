@@ -1,36 +1,55 @@
-#include "libft/libft.h"
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   server.c                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: araji <araji@student.1337.ma>              +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2025/03/23 17:38:34 by araji             #+#    #+#             */
+/*   Updated: 2025/03/24 00:11:46 by araji            ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
 
-#define END_TRANSMISSION '\0'
+#include "minitalk.h"
 
-void	handle_signal(int signal)
+void	handle_signal(int signal, siginfo_t *info, void *context)
 {
-	static unsigned char	current_char;
-	static int				bit_index;
+	static unsigned char	ch;
+	static int				index;
+	int						bit_received;
+	static pid_t			last_pid;
 
-	current_char |= (signal == SIGUSR1);
-	bit_index++;
-	if (bit_index == 8)
+	if (last_pid != info->si_pid && (context || !context))
 	{
-		if (current_char == END_TRANSMISSION)
-			ft_printf("\n");
-		else
-			ft_printf("%c", current_char);
-		bit_index = 0;
-		current_char = 0;
+		ch = 0;
+		index = 0;
+		last_pid = info->si_pid;
 	}
-	else
-		current_char <<= 1;
+	bit_received = 0;
+	if (signal == SIGUSR1)
+		bit_received = 1;
+	ch = (ch << 1) + bit_received;
+	index++;
+	if (index == 8)
+	{
+		write(1, &ch, 1);
+		index = 0;
+		ch = 0;
+	}
 }
 
 int	main(void)
 {
-	printf("%d\n", getpid());
-	signal(SIGUSR1, handle_signal);
-	signal(SIGUSR2, handle_signal);
+	pid_t				pid;
+	struct sigaction	sa;
+
+	sa.sa_sigaction = &handle_signal;
+	sa.sa_flags = SA_SIGINFO | SA_RESTART;
+	sigemptyset(&sa.sa_mask);
+	pid = getpid();
+	ft_putnbr_fd(pid, 1);
+	sigaction(SIGUSR1, &sa, NULL);
+	sigaction(SIGUSR2, &sa, NULL);
 	while (1)
 		pause();
 	return (0);
